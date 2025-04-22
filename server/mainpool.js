@@ -16,7 +16,7 @@ function initPoolServer(io) {
 
     socket.on("join_pool", (thought) => {
       socket.emit("user_connected");
-      const SIMILARITY_THRESHOLD = 0.55;
+      const SIMILARITY_THRESHOLD = 0.89;
       const fullThought = { ...thought, socketId: socket.id };
 
       let bestMatch = null;   
