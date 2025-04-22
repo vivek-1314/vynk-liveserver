@@ -2,7 +2,6 @@ const { Server } = require("socket.io");
 const { create1to1Channel } = require('../utils/channel'); 
 
 const thoughtPool = new Map();
-const userMatches = new Map();
 
 function cosineSimilarity(a, b) {
   const dot = a.reduce((sum, val, i) => sum + val * b[i], 0);
@@ -10,7 +9,7 @@ function cosineSimilarity(a, b) {
   const magB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
   return dot / (magA * magB);
 }
-
+  
 function initPoolServer(io) {
   io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
@@ -20,7 +19,7 @@ function initPoolServer(io) {
       const SIMILARITY_THRESHOLD = 0.55;
       const fullThought = { ...thought, socketId: socket.id };
 
-      let bestMatch = null;
+      let bestMatch = null;   
       let bestScore = -1;
 
       for (const other of thoughtPool.values()) {
@@ -38,7 +37,6 @@ function initPoolServer(io) {
         thoughtPool.delete(bestMatch.socketId);
         thoughtPool.delete(socket.id);
 
-      
               io.to(bestMatch.socketId).emit("match_found", {
                 yourThought: bestMatch,
                 matchedWith: fullThought,
@@ -62,6 +60,14 @@ function initPoolServer(io) {
       }
       console.log("User disconnected:", socket.id);
     });
+
+    socket.on("refresh" , () => {
+      const removed = thoughtPool.get(socket.id);
+      if (removed) {
+        thoughtPool.delete(socket.id);
+      }
+    })
+
   });
 }
 
