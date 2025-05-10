@@ -16,7 +16,7 @@ function initPoolServer(io) {
 
     socket.on("join_pool", (thought) => {
       socket.emit("user_connected");
-      const SIMILARITY_THRESHOLD = 0.89;
+      const SIMILARITY_THRESHOLD = 0.75;
       const fullThought = { ...thought, socketId: socket.id };
 
       let bestMatch = null;   
@@ -25,6 +25,7 @@ function initPoolServer(io) {
       for (const other of thoughtPool.values()) {
         if (other.userId !== fullThought.userId) {
           const score = cosineSimilarity(fullThought.embedding, other.embedding);
+          console.log("Score:", score);
           if (score > bestScore && score >= SIMILARITY_THRESHOLD) {
             bestScore = score;
             bestMatch = other;
@@ -40,7 +41,7 @@ function initPoolServer(io) {
               io.to(bestMatch.socketId).emit("match_found", {
                 yourThought: bestMatch,
                 matchedWith: fullThought,
-              });
+              }); 
 
               io.to(socket.id).emit("match_found", {
                 yourThought: fullThought,
