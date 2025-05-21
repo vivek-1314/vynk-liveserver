@@ -3,7 +3,6 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
-const livepoolroute = require('./routes/livepool'); 
 const  {initPoolServer}  = require("./server/mainpool");
 require('dotenv').config();  // Adjust the path if needed
 
@@ -24,11 +23,7 @@ const io = new Server(server, {
   },
 });
 
-// Initialize the pool server (this is where your Socket.IO logic is triggered)
 initPoolServer(io);
-
-// Set up the route for livepool (assuming you're using it for some API)
-app.use('/livepool', livepoolroute);
 
 
 // A simple route to test the server
@@ -36,7 +31,6 @@ app.get("/", (req, res) => {
   res.send("Live Pool Server is running...");
 });
 
-// Start the server on port 3001
 server.listen(3001, () => {
   console.log("Live Pool Server running on port 3001");
 });

@@ -1,44 +1,34 @@
 const { Server } = require("socket.io");
 const { create1to1Channel } = require('../utils/channel'); 
+const { pineconeIndex } = require('../lib/pinecone');
+const {upsertThought} = require("../utils/inserttopinecone")
+const {querySimilarThoughts} = require("../utils/checking_simlarity")
 
-const thoughtPool = new Map();
 
-function cosineSimilarity(a, b) {
-  const dot = a.reduce((sum, val, i) => sum + val * b[i], 0);
-  const magA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
-  const magB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
-  return dot / (magA * magB);
-}
-  
 function initPoolServer(io) {
+  const socketThoughtMap = new Map();
+
   io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
-    socket.on("join_pool", (thought) => {
+    socket.on("join_pool", async (thought) => {
       socket.emit("user_connected");
       const SIMILARITY_THRESHOLD = 0.75;
-      const fullThought = { ...thought, socketId: socket.id };
-
-      let bestMatch = null;   
+      const fullThought = {values: thought.embedding , metadata: {
+        userId: thought.userId,
+        thought: thought.thought,
+        socketId: socket.id,
+      }}
+   
       let bestScore = -1;
 
-      for (const other of thoughtPool.values()) {
-        if (other.userId !== fullThought.userId) {
-          const score = cosineSimilarity(fullThought.embedding, other.embedding);
-          console.log("Score:", score);
-          if (score > bestScore && score >= SIMILARITY_THRESHOLD) {
-            bestScore = score;
-            bestMatch = other;
-          }
-        }
-      }
-
+      const bestMatch = await querySimilarThoughts(fullThought.values) ;
+      
       if (bestMatch) {
-       
-        thoughtPool.delete(bestMatch.socketId);
-        thoughtPool.delete(socket.id);
 
-              io.to(bestMatch.socketId).emit("match_found", {
+        const deleteResponse = await pineconeIndex.deleteOne(bestMatch.id);
+
+              io.to(bestMatch.metadata.socketid).emit("match_found", {
                 yourThought: bestMatch,
                 matchedWith: fullThought,
               }); 
@@ -48,28 +38,33 @@ function initPoolServer(io) {
                 matchedWith: bestMatch,
               });
       } else {
-        thoughtPool.set(socket.id, fullThought);
-        socket.emit("waiting_for_match");
+        user_pincode_thought_id = await upsertThought(
+          fullThought.metadata.userId,
+          fullThought.metadata.thought,
+          fullThought.values,
+          socket.id
+        );
+        socketThoughtMap.set(socket.id, user_pincode_thought_id);
+        socket.emit("waiting_for_match") ;
       }
     });
 
-    socket.on("disconnect", () => {
-      const removed = thoughtPool.get(socket.id);
-      if (removed) {
-        thoughtPool.delete(socket.id);
-        userMatches.delete(removed.userId);
+    socket.on("disconnect", async () => {
+      const thoughtId = socketThoughtMap.get(socket.id);
+      if(thoughtId !== undefined){
+        const deleteResponse1 = await pineconeIndex.deleteOne(thoughtId);
+        socketThoughtMap.delete(socket.id);
       }
-      console.log("User disconnected:", socket.id);
     });
 
-    socket.on("refresh" , () => {
-      const removed = thoughtPool.get(socket.id);
-      if (removed) {
-        thoughtPool.delete(socket.id);
+    socket.on("refresh" , async () => {
+      const thoughtId = socketThoughtMap.get(socket.id);
+      if(thoughtId !== undefined){
+        const deleteResponse1 = await pineconeIndex.deleteOne(thoughtId);
+        socketThoughtMap.delete(socket.id);
       }
     })
-
   });
 }
 
-module.exports = { initPoolServer, thoughtPool };
+module.exports = { initPoolServer };
